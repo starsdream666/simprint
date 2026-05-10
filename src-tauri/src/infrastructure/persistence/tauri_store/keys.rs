@@ -5,6 +5,9 @@
 /// 存储相关配置（与前端 storage-settings 对应）
 pub const STORAGE: &str = "storage";
 
+/// 服务端相关配置（运行时覆盖编译配置）
+pub const SERVER: &str = "server";
+
 /// MCP 配置
 pub const MCP: &str = "mcp";
 
@@ -13,4 +16,9 @@ pub mod storage {
     pub const LOGS_PATH: &str = "logsPath";
     pub const CACHE_PATH: &str = "cachePath";
     pub const BETA_CHANNEL: &str = "betaChannel";
+}
+
+/// 服务端配置下的子键
+pub mod server {
+    pub const BASE_URL: &str = "baseUrl";
 }

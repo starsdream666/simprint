@@ -83,12 +83,54 @@ pub fn is_login() -> bool {
 /// 支持自动重试，最多重试 3 次
 pub async fn fetch_server_public_key() -> Result<(), String> {
     use crate::infrastructure::http::client::Client;
-    use tokio::time::{Duration, sleep};
 
-    let url = Client::build_url("secret/public/key").map_err(|_| {
-        error!("服务器请求路径错误");
-        "初始化失败".to_string()
-    })?;
+    let public_key =
+        fetch_server_public_key_from_url(Client::build_url("secret/public/key").map_err(|_| {
+            error!("服务器请求路径错误");
+            "初始化失败".to_string()
+        })?)
+        .await?;
+
+    *SERVER_PUBLIC_KEY.write().unwrap() = Some(public_key);
+    Ok(())
+}
+
+pub async fn fetch_server_public_key_for_base_url(base_url: &str) -> Result<String, String> {
+    use crate::{app::context::AppContext, infrastructure::http::client::Client};
+
+    let version = AppContext::get().config().server.version.clone();
+    let url =
+        Client::build_url_with_parts(base_url, &version, "secret/public/key").map_err(|_| {
+            error!("服务器请求路径错误");
+            "初始化失败".to_string()
+        })?;
+
+    fetch_server_public_key_from_url(url).await
+}
+
+/// 初始化服务器公钥（应用启动时调用，是 fetch_server_public_key 的别名）
+#[inline]
+pub async fn init_server_public_key() -> Result<(), String> {
+    fetch_server_public_key().await
+}
+
+/// 获取服务器公钥（必须在初始化后调用）
+pub fn get_server_public_key() -> String {
+    SERVER_PUBLIC_KEY.read().unwrap().clone().expect("服务器配置未初始化")
+}
+
+/// 设置服务器公钥
+pub fn set_server_public_key(public_key: String) {
+    *SERVER_PUBLIC_KEY.write().unwrap() = Some(public_key);
+}
+
+/// 清除服务器公钥
+pub fn clear_server_public_key() {
+    *SERVER_PUBLIC_KEY.write().unwrap() = None;
+}
+
+async fn fetch_server_public_key_from_url(url: reqwest::Url) -> Result<String, String> {
+    use tokio::time::{sleep, Duration};
 
     let client = reqwest::Client::builder()
         .timeout(Duration::from_secs(10))
@@ -111,49 +153,25 @@ pub async fn fetch_server_public_key() -> Result<(), String> {
                 match response.text().await {
                     Ok(public_key) => {
                         if public_key.contains("-----BEGIN RSA PUBLIC KEY-----") {
-                            *SERVER_PUBLIC_KEY.write().unwrap() = Some(public_key);
-                            return Ok(());
-                        } else {
-                            error!("服务器响应错误");
-                            return Err("初始化失败".to_string());
+                            return Ok(public_key);
                         }
+
+                        error!("服务器响应错误");
+                        return Err("初始化失败".to_string());
                     }
                     Err(_) => {
                         last_err = Some("初始化失败".to_string());
-                        continue;
                     }
                 }
             }
             Err(_) => {
                 last_err = Some("初始化失败".to_string());
-                continue;
             }
         }
     }
 
     error!("获取服务器公钥失败，已达到最大重试次数");
     Err(last_err.unwrap_or_else(|| "初始化失败".to_string()))
-}
-
-/// 初始化服务器公钥（应用启动时调用，是 fetch_server_public_key 的别名）
-#[inline]
-pub async fn init_server_public_key() -> Result<(), String> {
-    fetch_server_public_key().await
-}
-
-/// 获取服务器公钥（必须在初始化后调用）
-pub fn get_server_public_key() -> String {
-    SERVER_PUBLIC_KEY.read().unwrap().clone().expect("服务器配置未初始化")
-}
-
-/// 设置服务器公钥
-pub fn set_server_public_key(public_key: String) {
-    *SERVER_PUBLIC_KEY.write().unwrap() = Some(public_key);
-}
-
-/// 清除服务器公钥
-pub fn clear_server_public_key() {
-    *SERVER_PUBLIC_KEY.write().unwrap() = None;
 }
 
 // ============ 凭证刷新函数 ============

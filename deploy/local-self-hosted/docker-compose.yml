@@ -1,0 +1,62 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: simprint-postgres-local
+    environment:
+      POSTGRES_DB: simprintdb
+      POSTGRES_USER: simprint
+      POSTGRES_PASSWORD: simprint-postgres-password
+    volumes:
+      - simprint-postgres-local-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U simprint -d simprintdb"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    container_name: simprint-redis-local
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - simprint-redis-local-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  mailpit:
+    image: axllent/mailpit:latest
+    container_name: simprint-mailpit-local
+    ports:
+      - "8025:8025"
+      - "1025:1025"
+    restart: unless-stopped
+
+  simprint-server:
+    image: ghcr.io/simprint/simprint-server:latest
+    container_name: simprint-server-local
+    command: ["-f=/app/configs/config.toml"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      mailpit:
+        condition: service_started
+    ports:
+      - "40041:40041"
+    volumes:
+      - ./config.toml:/app/configs/config.toml:ro
+      - simprint-secret-local-data:/app/assets/secret
+    environment:
+      RUST_LOG: info
+    restart: unless-stopped
+
+volumes:
+  simprint-postgres-local-data:
+  simprint-redis-local-data:
+  simprint-secret-local-data:

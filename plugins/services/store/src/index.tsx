@@ -61,6 +61,12 @@ export {
   DEFAULT_STORAGE_SETTINGS,
 } from './stores/storage-settings';
 export type { DirectorySizeCache, StorageSettings, StoragePathKey } from './stores/storage-settings';
+export {
+  getServerEndpointState,
+  setServerBaseUrl,
+  resetServerBaseUrl,
+} from './stores/server-settings';
+export type { ServerEndpointState } from './stores/server-settings';
 
 /**
  * App Store Provider 组件

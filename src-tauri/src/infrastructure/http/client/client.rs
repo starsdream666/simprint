@@ -1,7 +1,10 @@
-use reqwest::{Url, header};
+use reqwest::{header, Url};
 use std::{fmt::Debug, future::Future, pin::Pin, time::Duration};
 
-use crate::app::context::AppContext;
+use crate::{
+    app::{context::AppContext, handle::get_app_handle},
+    infrastructure::persistence::tauri_store::{self, keys},
+};
 
 pub type BeforeCallFunction = fn(
     rb: reqwest::RequestBuilder,
@@ -40,12 +43,41 @@ impl Client {
     pub fn build_url(resource: &str) -> Result<Url, anyhow::Error> {
         let ctx = AppContext::get();
         let config = ctx.config();
-        let server_url = config.server.base_url.as_str();
-        let version = config.server.version.as_str();
+        let base_url = Self::effective_server_base_url();
+        Self::build_url_with_parts(&base_url, config.server.version.as_str(), resource)
+    }
 
-        let t = Url::parse(server_url)?.join(&format!("{}/", version))?.join(resource)?;
+    pub fn build_url_with_parts(
+        base_url: &str,
+        version: &str,
+        resource: &str,
+    ) -> Result<Url, anyhow::Error> {
+        Url::parse(base_url)?
+            .join(&format!("{}/", version))?
+            .join(resource)
+            .map_err(Into::into)
+    }
 
-        Ok(t)
+    pub fn effective_server_base_url() -> String {
+        Self::runtime_server_base_url()
+            .unwrap_or_else(|| AppContext::get().config().server.base_url.clone())
+    }
+
+    pub fn runtime_server_base_url() -> Option<String> {
+        let app = get_app_handle().ok()?;
+        let raw = tauri_store::get_store_key(&app, keys::SERVER)?;
+        let obj = raw.as_object()?;
+        let value = obj
+            .get(keys::server::BASE_URL)
+            .or_else(|| obj.get("base_url"))
+            .and_then(|item| item.as_str())?
+            .trim();
+
+        if value.is_empty() {
+            None
+        } else {
+            Some(value.to_string())
+        }
     }
 
     async fn run_before(

@@ -9,6 +9,7 @@ pub mod logging;
 pub mod mcp;
 pub mod network;
 pub mod security;
+pub mod server;
 pub mod store;
 pub mod updater;
 pub mod window;
@@ -70,6 +71,10 @@ pub fn register_handles() -> impl Fn(Invoke<tauri::Wry>) -> bool + Send + Sync +
         network::test_direct_ip,
         network::detect_proxy_ip,
         network::download_files,
+        // Server endpoint commands
+        server::get_server_endpoint_state,
+        server::set_server_base_url,
+        server::reset_server_base_url,
         // Auth commands
         auth::login,
         auth::register,

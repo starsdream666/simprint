@@ -12,3 +12,4 @@ export * from './general-settings';
 export * from './browser-settings';
 export * from './network-settings';
 export * from './storage-settings';
+export * from './server-settings';
